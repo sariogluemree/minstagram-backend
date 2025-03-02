@@ -26,7 +26,7 @@ router.post('/send-verification-code', async (req, res) => {
 });
 
 // Kullanıcı doğrulama kodunu girince kontrol et
-router.post('/verify-code', async (req, res) => {
+router.post('/verify-email', async (req, res) => {
     const { email, code } = req.body;
     if (!email || !code) return res.status(400).json({ message: 'Email and code are required' });
 

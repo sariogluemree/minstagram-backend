@@ -5,6 +5,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const verifyToken = require('../middleware/auth'); // Token doğrulama middleware
 
+const isEmail = (input) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(input);
+};
+
 // Kullanıcı Kaydı
 router.post('/register', async (req, res) => {
     try {
@@ -32,9 +37,12 @@ router.post('/register', async (req, res) => {
 // Kullanıcı Girişi
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { emailOrUsername, password } = req.body;
+        const query = isEmail(emailOrUsername)
+        ? { email: emailOrUsername }
+        : { username: emailOrUsername };
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ query });
         if (!user) return res.status(400).json({ message: 'Invalid email or password' });
 
         const isMatch = await bcrypt.compare(password, user.password);
