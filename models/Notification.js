@@ -1,0 +1,14 @@
+const mongoose = require('mongoose');
+
+const NotificationSchema = new mongoose.Schema({
+  recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Bildirimi alan kişi
+  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Bildirimi gönderen kişi
+  type: { type: String, enum: ['like', 'comment', 'follow', 'tag'], required: true }, // Bildirim türü
+  postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null }, // Post ile ilgiliyse
+  createdAt: { type: Date, default: Date.now },
+  seen: { type: Boolean, default: false }
+});
+
+NotificationSchema.index({ recipientId: 1, seen: 1 });
+
+module.exports = mongoose.model('Notification', NotificationSchema);
