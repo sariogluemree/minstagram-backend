@@ -19,7 +19,6 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
-        // Kullanıcı var mı kontrol et
         const existingUser = await User.findOne({ $or: [{ email }, { username }] });
         if (existingUser) {
             return res.status(400).json({ message: 'Email or username already exists' });
@@ -27,8 +26,7 @@ router.post('/register', async (req, res) => {
 
         const newUser = new User({ email, username, password});
         await newUser.save();
-
-        res.status(201).json({ message: 'User registered successfully' });
+        res.status(201).json({ newUser, registerMessage: 'User registered successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
     }
@@ -42,7 +40,7 @@ router.post('/login', async (req, res) => {
         ? { email: emailOrUsername }
         : { username: emailOrUsername };
 
-        const user = await User.findOne({ query });
+        const user = await User.findOne(query);
         if (!user) return res.status(400).json({ message: 'Invalid email or password' });
 
         const isMatch = await bcrypt.compare(password, user.password);
