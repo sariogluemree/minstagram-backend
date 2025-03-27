@@ -9,7 +9,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, default: "" },
   bio: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now }
-});
+}, { collection: "users" });
 
 UserSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
