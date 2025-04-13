@@ -65,6 +65,7 @@ router.get('/followers/:userId', async (req, res) => {
 
         const followerDetails = followers.map(follow => {
             return {
+                _id: follow.followerId._id,
                 username: follow.followerId.username,
                 profilePhoto: follow.followerId.profilePhoto,
                 name: follow.followerId.name,

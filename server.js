@@ -10,7 +10,7 @@ app.use(cors());
 app.use('/api/verifications', require('./routes/verificationCode'));
 app.use('/api/users', require('./routes/user'));
 app.use("/api/posts", require('./routes/post'));
-app.use("/api", require("./routes/uploadRoutes"));
+app.use("/api", require("./routes/upload"));
 app.use("/api/follows", require("./routes/follow"));
 
 // MongoDB Atlas bağlantısı
