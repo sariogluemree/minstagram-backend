@@ -1,11 +1,17 @@
 const express = require('express');
 const SavedPost = require('../models/SavedPost');
 const router = express.Router();
+const verifyToken = require('../middleware/auth');
 
 // SavedPost Routes
-router.post('/save', async (req, res) => {
+router.post('/save', verifyToken, async (req, res) => {
     try {
-        const { userId, postId } = req.body;
+        const { postId } = req.body;
+        const userId = req.user.id;
+        const isExisting = await SavedPost.findOne({ postId, userId });
+        if (isExisting) {
+            return res.status(400).json({ message: 'Post already saved' });
+        }
         const newSavedPost = new SavedPost({ userId, postId });
         await newSavedPost.save();
         res.status(201).json(newSavedPost);
@@ -14,9 +20,10 @@ router.post('/save', async (req, res) => {
     }
 });
 
-router.delete('/save', async (req, res) => {
+router.delete('/unsave', verifyToken, async (req, res) => {
     try {
-        const { userId, postId } = req.body;
+        const { postId } = req.body;
+        const userId = req.user.id;
         await SavedPost.findOneAndDelete({ userId, postId });
         res.json({ message: 'Post unsaved' });
     } catch (err) {
@@ -24,7 +31,7 @@ router.delete('/save', async (req, res) => {
     }
 });
 
-router.get('/saved/:userId', async (req, res) => {
+router.get('/getAll/:userId', async (req, res) => {
     try {
         const savedPosts = await SavedPost.find({ userId: req.params.userId }).populate('postId');
         res.json(savedPosts);

@@ -47,7 +47,6 @@ router.post('/login', async (req, res) => {
         if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
         const token = jwt.sign({ id: user._id}, process.env.JWT_SECRET, { expiresIn: '7d' });
-        console.log(user.getPublicProfile());
         res.json({ token, user: user.getPublicProfile() });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
@@ -57,7 +56,6 @@ router.post('/login', async (req, res) => {
 // Kullanıcı Profilini Getirme
 router.get('/profile/:username', async (req, res) => {
     try {
-        console.log('Requested username:', req.params.username);
         const user = await User.findOne({ username: req.params.username });
 
         if (!user) return res.status(404).json({ message: 'User not found' });
