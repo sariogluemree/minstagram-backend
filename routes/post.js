@@ -42,7 +42,7 @@ router.post("/", verifyToken, async (req, res) => {
                 position: tag.position
             })),
             createdAt: populatedPost.createdAt,
-            user: {
+            userId: {
                 _id: populatedPost.userId._id,
                 username: populatedPost.userId.username,
                 profilePhoto: populatedPost.userId.profilePhoto
