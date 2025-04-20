@@ -9,7 +9,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, default: "" },
   bio: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now }
-});
+}, { collection: "users" });
 
 UserSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
@@ -28,10 +28,19 @@ UserSchema.methods.comparePassword = function(candidatePassword) {
 
 UserSchema.methods.getPublicProfile = function() {
   return {
+    _id: this._id,
     username: this.username,
     profilePhoto: this.profilePhoto,
     name: this.name,
     bio: this.bio
+  };
+};
+
+UserSchema.methods.getPostProfile = function() {
+  return {
+    _id: this._id,
+    username: this.username,
+    profilePhoto: this.profilePhoto,
   };
 };
 

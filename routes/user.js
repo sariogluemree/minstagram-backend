@@ -46,8 +46,7 @@ router.post('/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
+        const token = jwt.sign({ id: user._id}, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: user.getPublicProfile() });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
@@ -57,10 +56,15 @@ router.post('/login', async (req, res) => {
 // Kullanıcı Profilini Getirme
 router.get('/profile/:username', async (req, res) => {
     try {
-        const user = await User.findOne({ username: req.params.username }).select('-password');
+        const user = await User.findOne({ username: req.params.username });
+
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        res.json({ user: { username: user.getPublicProfile() } });
+        // Query parametresine göre profil tipini belirleme
+        const profileType = req.query.type; // ?type=post veya ?type=public
+        const profile = profileType === 'post' ? user.getPostProfile() : user.getPublicProfile();
+
+        res.json(profile);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
     }
@@ -72,7 +76,7 @@ router.put('/update', verifyToken, async (req, res) => {
         const { name, bio, profilePhoto } = req.body;
 
         const updatedUser = await User.findByIdAndUpdate(
-            req.user.userId,
+            req.user.id,
             { name, bio, profilePhoto },
             { new: true }
         ).select('-password');
@@ -86,8 +90,8 @@ router.put('/update', verifyToken, async (req, res) => {
 // Kullanıcıyı Silme (Token Gerekli)
 router.delete('/delete', verifyToken, async (req, res) => {
     try {
-        await User.findByIdAndDelete(req.user.userId);
-        res.json({ message: 'User deleted successfully' });
+        await User.findByIdAndDelete(req.user.id);
+        res.json({ message: 'Your account deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
     }
