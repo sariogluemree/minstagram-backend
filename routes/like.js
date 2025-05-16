@@ -17,7 +17,6 @@ router.post('/like', verifyToken, async (req, res) => {
         const savedLike = await newLike.save();
         const populatedLike = await Like.findById(savedLike._id)
         .populate("userId", "username profilePhoto");
-        //console.log(populatedLike);
         res.status(201).json(populatedLike);
     } catch (err) {
         res.status(500).json({ error: err.message });

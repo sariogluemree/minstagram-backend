@@ -22,7 +22,11 @@ mongoose.connect(process.env.MONGO_URI, {})
 .catch(err => console.log(err));
 
 app.get("/", (req, res) => {
-  res.send("Mini Instagram API Çalişiyor!");
+  res.json({
+    message: "Mini Instagram API Çalışıyor!",
+    status: "OK",
+    version: "1.0.0"
+  });
 });
 
 const PORT = process.env.PORT || 5001;

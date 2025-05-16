@@ -13,7 +13,6 @@ router.post('/create', verifyToken, async (req, res) => {
 
         const populatedComment = await Comment.findById(savedComment._id)
         .populate("userId", "username profilePhoto");
-        //console.log("populated comment:", populatedComment);
 
         res.status(201).json(populatedComment);
     } catch (err) {
@@ -24,7 +23,6 @@ router.post('/create', verifyToken, async (req, res) => {
 router.get('/getAll/:postId', async (req, res) => {
     try {
         const comments = await Comment.find({ postId: req.params.postId }).populate('userId', 'username');
-        //console.log(comments);
         res.json(comments);
     } catch (err) {
         res.status(500).json({ error: err.message });

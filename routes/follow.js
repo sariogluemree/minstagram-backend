@@ -3,11 +3,14 @@ const router = express.Router();
 const Follow = require('../models/Follow');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const verifyToken = require('../middleware/auth');
 
 // Bir kullanıcıyı takip et
-router.post('/follow', async (req, res) => {
+router.post('/follow', verifyToken, async (req, res) => {
     try {
-        const { followerId, followingId } = req.body;
+        console.log("FOLLOW");
+        const { followingId } = req.body;
+        const followerId = req.user.id;
 
         if (followerId === followingId) {
             return res.status(400).json({ message: 'Kendi kendinizi takip edemezsiniz.' });
@@ -28,9 +31,10 @@ router.post('/follow', async (req, res) => {
 });
 
 // Takibi bırakma
-router.post('/unfollow', async (req, res) => {
+router.post('/unfollow', verifyToken, async (req, res) => {
     try {
-        const { followerId, followingId } = req.body;
+        const { followingId } = req.body;
+        const followerId = req.user.id;
 
         const follow = await Follow.findOneAndDelete({ followerId, followingId });
         if (!follow) {
@@ -77,5 +81,25 @@ router.get('/followers/:userId', async (req, res) => {
         res.status(500).json({ message: 'Sunucu hatası', error });
     }
 });
+
+// Kullanıcının birini takip edip etmediği bilgisi
+router.get('/isFollowing', verifyToken, async (req, res) => {
+    try {
+        const followerId = req.user.id;
+        const { followingId } = req.query;
+
+        if (!followingId) {
+            return res.status(400).json({ message: 'followingId gereklidir.' });
+        }
+
+        const isFollowing = await Follow.exists({ followerId, followingId });
+
+        res.status(200).json({ isFollowing: !!isFollowing });
+    } catch (error) {
+        res.status(500).json({ message: 'Sunucu hatası', error });
+    }
+});
+
+
 
 module.exports = router;

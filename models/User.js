@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const Post = require('../models/Post');
+const Follow = require('../models/Follow');
 
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -35,6 +37,24 @@ UserSchema.methods.getPublicProfile = function() {
     bio: this.bio
   };
 };
+
+UserSchema.methods.getPublicProfile = async function() {
+  const postsCount = await Post.countDocuments({ userId: this._id });
+  const followersCount = await Follow.countDocuments({ followingId: this._id });
+  const followingCount = await Follow.countDocuments({ followerId: this._id });
+
+  return {
+    _id: this._id,
+    username: this.username,
+    profilePhoto: this.profilePhoto,
+    name: this.name,
+    bio: this.bio,
+    postsCount,
+    followersCount,
+    followingCount
+  };
+};
+
 
 UserSchema.methods.getPostProfile = function() {
   return {

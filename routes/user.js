@@ -47,7 +47,7 @@ router.post('/login', async (req, res) => {
         if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
         const token = jwt.sign({ id: user._id}, process.env.JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, user: user.getPublicProfile() });
+        res.json({ token, user: await user.getPublicProfile() });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
     }
@@ -56,13 +56,14 @@ router.post('/login', async (req, res) => {
 // Kullanıcı Profilini Getirme
 router.get('/profile/:username', async (req, res) => {
     try {
+        console.log("GET USER");
         const user = await User.findOne({ username: req.params.username });
 
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         // Query parametresine göre profil tipini belirleme
         const profileType = req.query.type; // ?type=post veya ?type=public
-        const profile = profileType === 'post' ? user.getPostProfile() : user.getPublicProfile();
+        const profile = profileType === 'post' ? user.getPostProfile() : await user.getPublicProfile();
 
         res.json(profile);
     } catch (error) {
@@ -70,18 +71,30 @@ router.get('/profile/:username', async (req, res) => {
     }
 });
 
+// Tüm Kullanıcıları Getir
+router.get('/all', async (req, res) => {
+    try {
+        const userList = await User.find();
+        const users = await Promise.all(userList.map(async (user) => {
+            const publicUser = user.getPostProfile();
+            return publicUser;
+        }));
+        res.json(users);
+    } catch(err) {
+        console.error(err);
+        res.status(500).json({ error: "Kullanıcılar getirilemedi." });
+    }
+});
+
 // Kullanıcı Profilini Güncelleme (Token Gerekli)
 router.put('/update', verifyToken, async (req, res) => {
     try {
-        const { name, bio, profilePhoto } = req.body;
-
-        const updatedUser = await User.findByIdAndUpdate(
-            req.user.id,
-            { name, bio, profilePhoto },
+        const { name, username, bio, profilePhoto } = req.body;
+        const updatedUser = await User.findByIdAndUpdate(req.user.id, 
+            { name, username, bio, profilePhoto }, 
             { new: true }
-        ).select('-password');
-
-        res.json({ updatedUser: updatedUser.getPublicProfile() });
+        );
+        res.json( await updatedUser.getPublicProfile());
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
     }

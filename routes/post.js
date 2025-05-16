@@ -27,7 +27,6 @@ router.post("/", verifyToken, async (req, res) => {
         const populatedPost = await Post.findById(savedPost._id)
         .populate("userId", "username profilePhoto")
         .populate("tags.taggedUser", "username profilePhoto");
-        //console.log("Populated Post", populatedPost);
 
         res.status(201).json({
             _id: populatedPost._id,
@@ -54,6 +53,118 @@ router.post("/", verifyToken, async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ error: "Post oluşturulamadı." });
+    }
+});
+
+router.get('/post/:postId', verifyToken, async (req, res) => {
+    try {
+        console.log("GET POST");
+        const { postId } = req.params;
+        const activeUserId = req.user.id;
+
+        const post = await Post.findById(postId)
+            .populate('userId', 'username profilePhoto')
+            .populate("tags.taggedUser", "username profilePhoto");
+
+        if (!post) {
+            return res.status(404).json({ message: "Post bulunamadı" });
+        }
+
+        const postObj = post.toObject();
+        const comments = await Comment.find({ postId })
+            .populate('userId', 'username profilePhoto')
+            .sort({ createdAt: 1 });
+        const likeCount = await Like.countDocuments({ postId });
+        const existingLike = await Like.findOne({ postId: post._id, userId: activeUserId });
+        const isLiked = existingLike ? true : false;
+        const existingSave = await SavedPost.findOne({ postId: post._id, userId: activeUserId });
+        const isSaved = existingSave ? true : false;
+        postObj.comments = comments;
+        postObj.likeCount = likeCount;
+        postObj.isLiked = isLiked;
+        postObj.isSaved = isSaved;
+
+        res.status(200).json(postObj);
+    } catch (error) {
+        res.status(500).json({ message: 'Sunucu hatası', error });
+    }
+});
+
+// 📌 Post güncelle
+router.patch("/:id", verifyToken, async (req, res) => {
+    try {
+        const { caption } = req.body;
+        const post = await Post.findById(req.params.id);
+        
+        if (!post) {
+            return res.status(404).json({ error: "Post bulunamadı." });
+        }
+
+        if (post.userId.toString() !== req.user.id) {
+            return res.status(403).json({ error: "Bu postu güncelleme yetkiniz yok." });
+        }
+
+        post.caption = caption || post.caption;
+        await post.save();
+        res.json(post);
+    } catch (err) {
+        res.status(500).json({ error: "Post güncellenemedi." });
+    }
+});
+
+// 📌 Post sil
+router.delete("/:id", verifyToken, async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ error: "Post bulunamadı." });
+        }
+
+        if (post.userId.toString() !== req.user.id) {
+            return res.status(403).json({ error: "Bu postu silme yetkiniz yok." });
+        }
+
+        await post.deleteOne();
+        res.json({ message: "Post başarıyla silindi." });
+    } catch (err) {
+        res.status(500).json({ error: "Post silinemedi." });
+    }
+});
+
+// 📌 Bir user'ın postlarını getir
+router.get("/forUser/:userId", verifyToken, async (req, res) => {
+    try {
+        console.log("GET USER's POSTS");
+        const activeUserId = req.user.id;
+        const userId = req.params.userId;
+
+        const rawPosts = await Post.find({ userId: userId })
+            .populate("userId", "username profilePhoto")
+            .populate("tags.taggedUser", "username profilePhoto")
+            .sort({ createdAt: -1 });
+
+        const posts = await Promise.all(rawPosts.map(async (post) => {
+            const postObj = post.toObject();
+            const comments = await Comment.find({ postId: post._id })
+                .populate("userId", "username profilePhoto")
+                .sort({ createdAt: 1 });
+            const likeCount = await Like.countDocuments({ postId: post._id });
+            const existingLike = await Like.findOne({ postId: post._id, userId: activeUserId });
+            const likeFlag = existingLike ? true : false;
+            const existingSave = await SavedPost.findOne({ postId: post._id, userId: activeUserId });
+            const saveFlag = existingSave ? true : false;
+
+            postObj.comments = comments;
+            postObj.likeCount = likeCount;
+            postObj.isLiked = likeFlag;
+            postObj.isSaved = saveFlag;
+            
+            return postObj;
+        }));
+        res.json(posts);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Postlar getirilemedi." });
     }
 });
 
@@ -91,87 +202,10 @@ router.get("/feed", verifyToken, async (req, res) => {
 
             return postObj;
         }));
-        console.log(posts);
         res.json(posts);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Postlar getirilemedi." });
-    }
-});
-
-
-router.get('/post/:postId', verifyToken, async (req, res) => {
-    try {
-        console.log("GET POST");
-        const { postId } = req.params;
-        const activeUserId = req.user.id;
-
-        const post = await Post.findById(postId)
-            .populate('userId', 'username profilePhoto')
-            .populate("tags.taggedUser", "username profilePhoto");
-
-        if (!post) {
-            return res.status(404).json({ message: "Post bulunamadı" });
-        }
-
-        const postObj = post.toObject();
-        const comments = await Comment.find({ postId })
-            .populate('userId', 'username profilePhoto')
-            .sort({ createdAt: 1 });
-        const likeCount = await Like.countDocuments({ postId });
-        const existingLike = await Like.findOne({ postId: post._id, userId: activeUserId });
-        const isLiked = existingLike ? true : false;
-        const existingSave = await SavedPost.findOne({ postId: post._id, userId: activeUserId });
-        const isSaved = existingSave ? true : false;
-        postObj.comments = comments;
-        postObj.likeCount = likeCount;
-        postObj.isLiked = isLiked;
-        postObj.isSaved = isSaved;
-
-        res.status(200).json(postObj);
-    } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
-    }
-});
-
-// 📌 Post sil
-router.delete("/:id", verifyToken, async (req, res) => {
-    try {
-        const post = await Post.findById(req.params.id);
-        if (!post) {
-            return res.status(404).json({ error: "Post bulunamadı." });
-        }
-
-        if (post.userId.toString() !== req.user.id) {
-            return res.status(403).json({ error: "Bu postu silme yetkiniz yok." });
-        }
-
-        await post.deleteOne();
-        res.json({ message: "Post başarıyla silindi." });
-    } catch (err) {
-        res.status(500).json({ error: "Post silinemedi." });
-    }
-});
-
-// 📌 Post güncelle
-router.patch("/:id", verifyToken, async (req, res) => {
-    try {
-        const { caption } = req.body;
-        const post = await Post.findById(req.params.id);
-        
-        if (!post) {
-            return res.status(404).json({ error: "Post bulunamadı." });
-        }
-
-        if (post.userId.toString() !== req.user.id) {
-            return res.status(403).json({ error: "Bu postu güncelleme yetkiniz yok." });
-        }
-
-        post.caption = caption || post.caption;
-        await post.save();
-        res.json(post);
-    } catch (err) {
-        res.status(500).json({ error: "Post güncellenemedi." });
     }
 });
 
