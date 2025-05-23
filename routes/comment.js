@@ -1,7 +1,9 @@
 const express = require('express');
 const Comment = require('../models/Comment');
+const Post = require('../models/Post');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
+const { createNotification } = require('../utils/notificationService');
 
 // Comment Routes
 router.post('/create', verifyToken, async (req, res) => {
@@ -13,7 +15,15 @@ router.post('/create', verifyToken, async (req, res) => {
 
         const populatedComment = await Comment.findById(savedComment._id)
         .populate("userId", "username profilePhoto");
-
+        const post = await Post.findById(postId);
+        if (!post) return res.status(404).send('Post not found');
+        await createNotification({
+            recipientId: post.userId,
+            senderId: userId,
+            type: 'comment',
+            postId: postId,
+            commentId: populatedComment._id
+        });
         res.status(201).json(populatedComment);
     } catch (err) {
         res.status(500).json({ error: err.message });

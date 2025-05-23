@@ -15,6 +15,7 @@ app.use("/api/follows", require("./routes/follow"));
 app.use("/api/comments", require("./routes/comment"));
 app.use("/api/likes", require("./routes/like"));
 app.use("/api/savedPosts", require("./routes/savedPost"));
+app.use('/api/notifications', require('./routes/notification'));
 
 // MongoDB Atlas bağlantısı
 mongoose.connect(process.env.MONGO_URI, {})

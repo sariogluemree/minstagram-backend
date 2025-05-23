@@ -6,6 +6,7 @@ const Like = require("../models/Like");
 const verifyToken = require("../middleware/auth");
 const Follow = require("../models/Follow");
 const SavedPost = require("../models/SavedPost");
+const { createNotification } = require('../utils/notificationService');
 
 // 📌 Yeni post oluştur
 router.post("/", verifyToken, async (req, res) => {
@@ -27,6 +28,17 @@ router.post("/", verifyToken, async (req, res) => {
         const populatedPost = await Post.findById(savedPost._id)
         .populate("userId", "username profilePhoto")
         .populate("tags.taggedUser", "username profilePhoto");
+
+        for (const tag of tags) {
+            if (tag?.taggedUser) {
+                await createNotification({
+                    recipientId: tag.taggedUser,
+                    senderId: populatedPost.userId,
+                    type: 'tag',
+                    postId: populatedPost._id,
+                });
+            }
+        }
 
         res.status(201).json({
             _id: populatedPost._id,

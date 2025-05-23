@@ -1,7 +1,9 @@
 const express = require('express');
 const Like = require('../models/Like');
+const Post = require('../models/Post');
 const router = express.Router();
 const verifyToken = require('../middleware/auth');
+const { createNotification } = require('../utils/notificationService');
 
 // Like Routes
 router.post('/like', verifyToken, async (req, res) => {
@@ -17,6 +19,14 @@ router.post('/like', verifyToken, async (req, res) => {
         const savedLike = await newLike.save();
         const populatedLike = await Like.findById(savedLike._id)
         .populate("userId", "username profilePhoto");
+        const post = await Post.findById(postId);
+        if (!post) return res.status(404).send('Post not found');
+        await createNotification({
+            recipientId: post.userId,
+            senderId: userId,
+            type: 'like',
+            postId: postId
+        });
         res.status(201).json(populatedLike);
     } catch (err) {
         res.status(500).json({ error: err.message });

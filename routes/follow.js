@@ -4,6 +4,7 @@ const Follow = require('../models/Follow');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const verifyToken = require('../middleware/auth');
+const { createNotification } = require('../utils/notificationService');
 
 // Bir kullanıcıyı takip et
 router.post('/follow', verifyToken, async (req, res) => {
@@ -23,6 +24,12 @@ router.post('/follow', verifyToken, async (req, res) => {
 
         const newFollow = new Follow({ followerId, followingId });
         await newFollow.save();
+
+        await createNotification({
+            recipientId: followingId,
+            senderId: followerId,
+            type: 'follow'
+        });
 
         res.status(201).json({ message: 'Kullanıcı takip edildi.', follow: newFollow });
     } catch (error) {
