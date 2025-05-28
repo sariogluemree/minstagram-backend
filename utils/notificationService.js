@@ -14,4 +14,9 @@ async function createNotification({ recipientId, senderId, type, postId = null, 
   await notification.save();
 }
 
+async function deleteNotification(id) {
+  await Notification.findByIdAndDelete(id);
+}
+
+
 module.exports = { createNotification };

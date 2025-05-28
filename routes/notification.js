@@ -37,4 +37,16 @@ router.post('/seen/:id', verifyToken, async (req, res) => {
   res.send({ success: true });
 });
 
+router.get('/has-unseen', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const hasUnseen = await Notification.exists({ recipientId: userId, seen: false });
+    res.json({ hasUnseen: !!hasUnseen });
+  } catch (error) {
+    console.error("Error checking unseen notifications:", error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

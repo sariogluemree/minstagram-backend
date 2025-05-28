@@ -1,11 +1,10 @@
 const nodemailer = require('nodemailer');
 
-// Gmail SMTP veya başka bir SMTP servisini kullanabilirsin.
 const transporter = nodemailer.createTransport({
     service: 'gmail', 
     auth: {
-        user: process.env.EMAIL_USER,  // Gmail adresin
-        pass: process.env.EMAIL_PASS   // Gmail şifren veya uygulama şifren
+        user: process.env.EMAIL_USER,  
+        pass: process.env.EMAIL_PASS   
     }
 });
 
@@ -19,7 +18,7 @@ const sendVerificationEmail = async (email, verificationCode) => {
         };
 
         await transporter.sendMail(mailOptions);
-        //console.log(`Verification email sent to ${email}`);
+        console.log(`Verification email sent to ${email}`);
     } catch (error) {
         console.error('Error sending verification email:', error);
     }
