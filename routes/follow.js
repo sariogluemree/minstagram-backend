@@ -59,7 +59,7 @@ router.get('/following/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
 
-        const following = await Follow.find({ followerId: userId }).populate('followingId', 'username profileImageUrl');
+        const following = await Follow.find({ followerId: userId }).populate('followingId', 'username profilePhoto');
         res.status(200).json(following);
     } catch (error) {
         res.status(500).json({ message: 'Sunucu hatası', error });
@@ -71,6 +71,9 @@ router.get('/followers/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const user = await User.findOne({ username: userId })
+        if (!user) {
+            return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
+        }
         const followers = await Follow.find({ followingId: user._id })
             .populate('followerId', 'username profilePhoto name bio');
 

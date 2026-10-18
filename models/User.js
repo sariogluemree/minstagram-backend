@@ -28,15 +28,6 @@ UserSchema.methods.comparePassword = function(candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-UserSchema.methods.getPublicProfile = function() {
-  return {
-    _id: this._id,
-    username: this.username,
-    profilePhoto: this.profilePhoto,
-    name: this.name,
-    bio: this.bio
-  };
-};
 
 UserSchema.methods.getPublicProfile = async function() {
   const postsCount = await Post.countDocuments({ userId: this._id });

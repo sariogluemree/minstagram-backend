@@ -29,7 +29,8 @@ router.post("/", verifyToken, async (req, res) => {
         .populate("userId", "username profilePhoto")
         .populate("tags.taggedUser", "username profilePhoto");
 
-        for (const tag of tags) {
+        const tagsToIterate = tags || [];
+        for (const tag of tagsToIterate) {
             if (tag?.taggedUser) {
                 await createNotification({
                     recipientId: tag.taggedUser,
