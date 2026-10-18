@@ -54,13 +54,48 @@ router.post('/unfollow', verifyToken, async (req, res) => {
     }
 });
 
+// Takipçiyi çıkarma (kendi takipçilerinden birini silme)
+router.post('/removeFollower', verifyToken, async (req, res) => {
+    try {
+        const { followerId } = req.body;
+        const followingId = req.user.id;
+
+        const follow = await Follow.findOneAndDelete({ followerId, followingId });
+        if (!follow) {
+            return res.status(404).json({ message: 'Takipçi kaydı bulunamadı.' });
+        }
+
+        res.status(200).json({ message: 'Takipçi çıkarıldı.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Sunucu hatası' });
+    }
+});
+
 // Kullanıcının takip ettiği kişiler (following listesi)
 router.get('/following/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+        let user = await User.findOne({ username: userId });
+        if (!user && mongoose.Types.ObjectId.isValid(userId)) {
+            user = await User.findById(userId);
+        }
+        if (!user) {
+            return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
+        }
 
-        const following = await Follow.find({ followerId: userId }).populate('followingId', 'username profilePhoto');
-        res.status(200).json(following.filter(f => f.followingId != null));
+        const following = await Follow.find({ followerId: user._id })
+            .populate('followingId', 'username profilePhoto name bio');
+
+        const followingDetails = following
+            .filter(follow => follow.followingId != null)
+            .map(follow => ({
+                _id: follow.followingId._id,
+                username: follow.followingId.username,
+                profilePhoto: follow.followingId.profilePhoto,
+                name: follow.followingId.name,
+                bio: follow.followingId.bio
+            }));
+        res.status(200).json(followingDetails);
     } catch (error) {
         res.status(500).json({ message: 'Sunucu hatası' });
     }
@@ -70,7 +105,10 @@ router.get('/following/:userId', async (req, res) => {
 router.get('/followers/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const user = await User.findOne({ username: userId });
+        let user = await User.findOne({ username: userId });
+        if (!user && mongoose.Types.ObjectId.isValid(userId)) {
+            user = await User.findById(userId);
+        }
         if (!user) {
             return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
         }
