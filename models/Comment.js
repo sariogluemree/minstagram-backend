@@ -6,5 +6,8 @@ const CommentSchema = new mongoose.Schema({
   text: { type: String, required: true },
   createdAt: { type: Date, default: Date.now }
 });
+
+CommentSchema.index({ postId: 1, createdAt: 1 });
   
 module.exports = mongoose.model('Comment', CommentSchema);
+

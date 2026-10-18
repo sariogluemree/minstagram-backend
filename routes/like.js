@@ -11,6 +11,9 @@ router.post('/like', verifyToken, async (req, res) => {
         console.log("LIKE");
         const { postId } = req.body;
         const userId = req.user.id;
+        const post = await Post.findById(postId);
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+
         const existingLike = await Like.findOne({ postId, userId });
         if (existingLike) {
             return res.status(400).json({ message: 'Post already liked' });
@@ -18,9 +21,7 @@ router.post('/like', verifyToken, async (req, res) => {
         const newLike = new Like({ userId, postId });
         const savedLike = await newLike.save();
         const populatedLike = await Like.findById(savedLike._id)
-        .populate("userId", "username profilePhoto");
-        const post = await Post.findById(postId);
-        if (!post) return res.status(404).send('Post not found');
+            .populate("userId", "username profilePhoto");
         await createNotification({
             recipientId: post.userId,
             senderId: userId,
@@ -32,6 +33,7 @@ router.post('/like', verifyToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 router.delete('/unlike', verifyToken, async (req, res) => {
     try {

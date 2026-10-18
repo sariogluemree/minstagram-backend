@@ -6,7 +6,56 @@ const Like = require("../models/Like");
 const verifyToken = require("../middleware/auth");
 const Follow = require("../models/Follow");
 const SavedPost = require("../models/SavedPost");
+const Notification = require("../models/Notification");
 const { createNotification } = require('../utils/notificationService');
+
+async function hydratePosts(rawPosts, activeUserId) {
+    const validPosts = rawPosts.filter(post => post && post.userId != null);
+    if (validPosts.length === 0) return [];
+
+    const postIds = validPosts.map(post => post._id);
+
+    const [allComments, likeCounts, userLikes, userSaves] = await Promise.all([
+        Comment.find({ postId: { $in: postIds } })
+            .populate("userId", "username profilePhoto")
+            .sort({ createdAt: 1 }),
+        Like.aggregate([
+            { $match: { postId: { $in: postIds } } },
+            { $group: { _id: "$postId", count: { $sum: 1 } } }
+        ]),
+        Like.find({ postId: { $in: postIds }, userId: activeUserId }).select("postId"),
+        SavedPost.find({ postId: { $in: postIds }, userId: activeUserId }).select("postId")
+    ]);
+
+    const commentsByPostId = new Map();
+    for (const comment of allComments) {
+        if (!comment.userId) continue;
+        const key = comment.postId.toString();
+        if (!commentsByPostId.has(key)) {
+            commentsByPostId.set(key, []);
+        }
+        commentsByPostId.get(key).push(comment);
+    }
+
+    const likeCountByPostId = new Map(
+        likeCounts.map(item => [item._id.toString(), item.count])
+    );
+    const likedPostIds = new Set(userLikes.map(like => like.postId.toString()));
+    const savedPostIds = new Set(userSaves.map(save => save.postId.toString()));
+
+    return validPosts.map(post => {
+        const postObj = post.toObject();
+        const key = post._id.toString();
+
+        postObj.tags = (postObj.tags || []).filter(tag => tag && tag.taggedUser != null);
+        postObj.comments = commentsByPostId.get(key) || [];
+        postObj.likeCount = likeCountByPostId.get(key) || 0;
+        postObj.isLiked = likedPostIds.has(key);
+        postObj.isSaved = savedPostIds.has(key);
+
+        return postObj;
+    });
+}
 
 // 📌 Yeni post oluştur
 router.post("/", verifyToken, async (req, res) => {
@@ -26,15 +75,15 @@ router.post("/", verifyToken, async (req, res) => {
 
         const savedPost = await newPost.save();
         const populatedPost = await Post.findById(savedPost._id)
-        .populate("userId", "username profilePhoto")
-        .populate("tags.taggedUser", "username profilePhoto");
+            .populate("userId", "username profilePhoto")
+            .populate("tags.taggedUser", "username profilePhoto");
 
         const tagsToIterate = tags || [];
         for (const tag of tagsToIterate) {
             if (tag?.taggedUser) {
                 await createNotification({
                     recipientId: tag.taggedUser,
-                    senderId: populatedPost.userId,
+                    senderId: req.user.id,
                     type: 'tag',
                     postId: populatedPost._id,
                 });
@@ -45,14 +94,16 @@ router.post("/", verifyToken, async (req, res) => {
             _id: populatedPost._id,
             imageUrl: populatedPost.imageUrl,
             caption: populatedPost.caption,
-            tags: populatedPost.tags.map(tag => ({
-                taggedUser: {
-                    _id: tag.taggedUser._id,
-                    username: tag.taggedUser.username,
-                    profilePhoto: tag.taggedUser.profilePhoto
-                },
-                position: tag.position
-            })),
+            tags: (populatedPost.tags || [])
+                .filter(tag => tag && tag.taggedUser != null)
+                .map(tag => ({
+                    taggedUser: {
+                        _id: tag.taggedUser._id,
+                        username: tag.taggedUser.username,
+                        profilePhoto: tag.taggedUser.profilePhoto
+                    },
+                    position: tag.position
+                })),
             createdAt: populatedPost.createdAt,
             userId: {
                 _id: populatedPost.userId._id,
@@ -79,27 +130,14 @@ router.get('/post/:postId', verifyToken, async (req, res) => {
             .populate('userId', 'username profilePhoto')
             .populate("tags.taggedUser", "username profilePhoto");
 
-        if (!post) {
+        if (!post || !post.userId) {
             return res.status(404).json({ message: "Post bulunamadı" });
         }
 
-        const postObj = post.toObject();
-        const comments = await Comment.find({ postId })
-            .populate('userId', 'username profilePhoto')
-            .sort({ createdAt: 1 });
-        const likeCount = await Like.countDocuments({ postId });
-        const existingLike = await Like.findOne({ postId: post._id, userId: activeUserId });
-        const isLiked = existingLike ? true : false;
-        const existingSave = await SavedPost.findOne({ postId: post._id, userId: activeUserId });
-        const isSaved = existingSave ? true : false;
-        postObj.comments = comments;
-        postObj.likeCount = likeCount;
-        postObj.isLiked = isLiked;
-        postObj.isSaved = isSaved;
-
-        res.status(200).json(postObj);
+        const [hydratedPost] = await hydratePosts([post], activeUserId);
+        res.status(200).json(hydratedPost);
     } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 
@@ -117,7 +155,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
             return res.status(403).json({ error: "Bu postu güncelleme yetkiniz yok." });
         }
 
-        post.caption = caption || post.caption;
+        post.caption = caption !== undefined ? caption : post.caption;
         await post.save();
         res.json(post);
     } catch (err) {
@@ -137,7 +175,13 @@ router.delete("/:id", verifyToken, async (req, res) => {
             return res.status(403).json({ error: "Bu postu silme yetkiniz yok." });
         }
 
-        await post.deleteOne();
+        await Promise.all([
+            post.deleteOne(),
+            Comment.deleteMany({ postId: post._id }),
+            Like.deleteMany({ postId: post._id }),
+            SavedPost.deleteMany({ postId: post._id }),
+            Notification.deleteMany({ postId: post._id })
+        ]);
         res.json({ message: "Post başarıyla silindi." });
     } catch (err) {
         res.status(500).json({ error: "Post silinemedi." });
@@ -156,24 +200,7 @@ router.get("/forUser/:userId", verifyToken, async (req, res) => {
             .populate("tags.taggedUser", "username profilePhoto")
             .sort({ createdAt: -1 });
 
-        const posts = await Promise.all(rawPosts.map(async (post) => {
-            const postObj = post.toObject();
-            const comments = await Comment.find({ postId: post._id })
-                .populate("userId", "username profilePhoto")
-                .sort({ createdAt: 1 });
-            const likeCount = await Like.countDocuments({ postId: post._id });
-            const existingLike = await Like.findOne({ postId: post._id, userId: activeUserId });
-            const likeFlag = existingLike ? true : false;
-            const existingSave = await SavedPost.findOne({ postId: post._id, userId: activeUserId });
-            const saveFlag = existingSave ? true : false;
-
-            postObj.comments = comments;
-            postObj.likeCount = likeCount;
-            postObj.isLiked = likeFlag;
-            postObj.isSaved = saveFlag;
-            
-            return postObj;
-        }));
+        const posts = await hydratePosts(rawPosts, activeUserId);
         res.json(posts);
     } catch (err) {
         console.error(err);
@@ -189,32 +216,12 @@ router.get("/feed", verifyToken, async (req, res) => {
         const followings = await Follow.find({ followerId: activeUserId }).select('followingId');
         const followingIds = followings.map(f => f.followingId);
 
-        const rawPosts = await Post.find({ userId: {$in: [activeUserId, ...followingIds]} })
+        const rawPosts = await Post.find({ userId: { $in: [activeUserId, ...followingIds] } })
             .populate("userId", "username profilePhoto")
             .populate("tags.taggedUser", "username profilePhoto")
             .sort({ createdAt: -1 });
 
-        const posts = await Promise.all(rawPosts.map(async (post) => {
-            const postObj = post.toObject();
-
-            const comments = await Comment.find({ postId: post._id })
-                .populate("userId", "username profilePhoto")
-                .sort({ createdAt: 1 });
-
-            const likeCount = await Like.countDocuments({ postId: post._id });
-
-            const existingLike = await Like.findOne({ postId: post._id, userId: activeUserId });
-            const likeFlag = existingLike ? true : false;
-            const existingSave = await SavedPost.findOne({ postId: post._id, userId: activeUserId });
-            const saveFlag = existingSave ? true : false;
-
-            postObj.comments = comments;
-            postObj.likeCount = likeCount;
-            postObj.isLiked = likeFlag;
-            postObj.isSaved = saveFlag;
-
-            return postObj;
-        }));
+        const posts = await hydratePosts(rawPosts, activeUserId);
         res.json(posts);
     } catch (err) {
         console.error(err);
@@ -223,3 +230,4 @@ router.get("/feed", verifyToken, async (req, res) => {
 });
 
 module.exports = router;
+

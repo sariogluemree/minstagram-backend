@@ -30,9 +30,11 @@ UserSchema.methods.comparePassword = function(candidatePassword) {
 
 
 UserSchema.methods.getPublicProfile = async function() {
-  const postsCount = await Post.countDocuments({ userId: this._id });
-  const followersCount = await Follow.countDocuments({ followingId: this._id });
-  const followingCount = await Follow.countDocuments({ followerId: this._id });
+  const [postsCount, followersCount, followingCount] = await Promise.all([
+    Post.countDocuments({ userId: this._id }),
+    Follow.countDocuments({ followingId: this._id }),
+    Follow.countDocuments({ followerId: this._id })
+  ]);
 
   return {
     _id: this._id,
@@ -45,6 +47,7 @@ UserSchema.methods.getPublicProfile = async function() {
     followingCount
   };
 };
+
 
 
 UserSchema.methods.getPostProfile = function() {
