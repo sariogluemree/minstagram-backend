@@ -4,37 +4,47 @@ const Notification = require('../models/Notification');
 const verifyToken = require('../middleware/auth');
 
 router.get('/', verifyToken, async (req, res) => {
-  console.log("GET NOTIFICATIONS");
-  const userId = req.user.id;
+  try {
+    console.log("GET NOTIFICATIONS");
+    const userId = req.user.id;
 
-  const notifications = await Notification.find({ recipientId: userId })
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .select('-recipientId')
-    .populate('senderId', 'username profilePhoto') // UI için gerekli olabilir
-    .populate({
-      path: 'commentId',
-      populate: {
-        path: 'userId', // yorumun sahibini de populate et
-        select: 'username profilePhoto'
-      }
-    });;
+    const notifications = await Notification.find({ recipientId: userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select('-recipientId')
+      .populate('senderId', 'username profilePhoto') // UI için gerekli olabilir
+      .populate({
+        path: 'commentId',
+        populate: {
+          path: 'userId', // yorumun sahibini de populate et
+          select: 'username profilePhoto'
+        }
+      });
 
-  console.log(notifications);
-  res.json(notifications);
+    const validNotifications = notifications.filter(n => n.senderId != null);
+    res.json(validNotifications);
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.post('/seen/:id', verifyToken, async (req, res) => {
-  console.log("MARK AS SEEN");
-  const { id } = req.params;
-  const userId = req.user.id;
+  try {
+    console.log("MARK AS SEEN");
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  await Notification.updateOne(
-    { _id: id, recipientId: userId },
-    { $set: { seen: true } }
-  );
+    await Notification.updateOne(
+      { _id: id, recipientId: userId },
+      { $set: { seen: true } }
+    );
 
-  res.send({ success: true });
+    res.send({ success: true });
+  } catch (error) {
+    console.error("Error marking notification as seen:", error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.get('/has-unseen', verifyToken, async (req, res) => {
@@ -50,3 +60,4 @@ router.get('/has-unseen', verifyToken, async (req, res) => {
 });
 
 module.exports = router;
+

@@ -9,7 +9,7 @@ router.post('/send-verification-code', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
-    const verificationCode = crypto.randomInt(100000, 999999).toString(); // 6 haneli kod
+    const verificationCode = crypto.randomInt(100000, 1000000).toString(); // 6 haneli kod
 
     try {
         await VerificationCode.findOneAndUpdate(
@@ -27,17 +27,22 @@ router.post('/send-verification-code', async (req, res) => {
 
 // Kullanıcı doğrulama kodunu girince kontrol et
 router.post('/verify-email', async (req, res) => {
-    const { email, code } = req.body;
-    if (!email || !code) return res.status(400).json({ message: 'Email and code are required' });
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) return res.status(400).json({ message: 'Email and code are required' });
 
-    const record = await VerificationCode.findOne({ email, code });
+        const record = await VerificationCode.findOne({ email, code });
 
-    if (!record) return res.status(400).json({ message: 'Invalid or expired code' });
+        if (!record) return res.status(400).json({ message: 'Invalid or expired code' });
 
-    // Doğrulandıktan sonra kodu sil
-    await VerificationCode.deleteOne({ email });
+        // Doğrulandıktan sonra kodu sil
+        await VerificationCode.deleteOne({ email });
 
-    res.json({ message: 'Email verified successfully' });
+        res.json({ message: 'Email verified successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error verifying email' });
+    }
 });
 
 module.exports = router;
+

@@ -33,7 +33,7 @@ router.post('/follow', verifyToken, async (req, res) => {
 
         res.status(201).json({ message: 'Kullanıcı takip edildi.', follow: newFollow });
     } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 
@@ -50,7 +50,7 @@ router.post('/unfollow', verifyToken, async (req, res) => {
 
         res.status(200).json({ message: 'Kullanıcı takibi bırakıldı.' });
     } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 
@@ -60,9 +60,9 @@ router.get('/following/:userId', async (req, res) => {
         const { userId } = req.params;
 
         const following = await Follow.find({ followerId: userId }).populate('followingId', 'username profilePhoto');
-        res.status(200).json(following);
+        res.status(200).json(following.filter(f => f.followingId != null));
     } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 
@@ -70,25 +70,25 @@ router.get('/following/:userId', async (req, res) => {
 router.get('/followers/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const user = await User.findOne({ username: userId })
+        const user = await User.findOne({ username: userId });
         if (!user) {
             return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
         }
         const followers = await Follow.find({ followingId: user._id })
             .populate('followerId', 'username profilePhoto name bio');
 
-        const followerDetails = followers.map(follow => {
-            return {
+        const followerDetails = followers
+            .filter(follow => follow.followerId != null)
+            .map(follow => ({
                 _id: follow.followerId._id,
                 username: follow.followerId.username,
                 profilePhoto: follow.followerId.profilePhoto,
                 name: follow.followerId.name,
                 bio: follow.followerId.bio
-            };
-        });
+            }));
         res.status(200).json(followerDetails);
     } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 
@@ -106,10 +106,9 @@ router.get('/isFollowing', verifyToken, async (req, res) => {
 
         res.status(200).json({ isFollowing: !!isFollowing });
     } catch (error) {
-        res.status(500).json({ message: 'Sunucu hatası', error });
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 
-
-
 module.exports = router;
+

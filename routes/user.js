@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const Post = require('../models/Post');
+const Comment = require('../models/Comment');
+const Like = require('../models/Like');
+const Follow = require('../models/Follow');
+const SavedPost = require('../models/SavedPost');
+const Notification = require('../models/Notification');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const verifyToken = require('../middleware/auth'); // Token doğrulama middleware
@@ -24,11 +30,11 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'Email or username already exists' });
         }
 
-        const newUser = new User({ email, username, password});
+        const newUser = new User({ email, username, password });
         await newUser.save();
         res.status(201).json({ newUser: await newUser.getPublicProfile(), registerMessage: 'User registered successfully' });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error });
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -36,9 +42,12 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         const { emailOrUsername, password } = req.body;
+        if (!emailOrUsername || !password) {
+            return res.status(400).json({ message: 'Email/username and password are required' });
+        }
         const query = isEmail(emailOrUsername)
-        ? { email: emailOrUsername }
-        : { username: emailOrUsername };
+            ? { email: emailOrUsername }
+            : { username: emailOrUsername };
 
         const user = await User.findOne(query);
         if (!user) return res.status(400).json({ message: 'Invalid email or password' });
@@ -46,10 +55,10 @@ router.post('/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
-        const token = jwt.sign({ id: user._id}, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: await user.getPublicProfile() });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error });
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -67,7 +76,7 @@ router.get('/profile/:username', async (req, res) => {
 
         res.json(profile);
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error });
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -75,12 +84,9 @@ router.get('/profile/:username', async (req, res) => {
 router.get('/all', async (req, res) => {
     try {
         const userList = await User.find();
-        const users = await Promise.all(userList.map(async (user) => {
-            const publicUser = user.getPostProfile();
-            return publicUser;
-        }));
+        const users = userList.map((user) => user.getPostProfile());
         res.json(users);
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Kullanıcılar getirilemedi." });
     }
@@ -90,24 +96,51 @@ router.get('/all', async (req, res) => {
 router.put('/update', verifyToken, async (req, res) => {
     try {
         const { name, username, bio, profilePhoto } = req.body;
-        const updatedUser = await User.findByIdAndUpdate(req.user.id, 
-            { name, username, bio, profilePhoto }, 
+        if (username) {
+            const existingUsername = await User.findOne({
+                username,
+                _id: { $ne: req.user.id }
+            });
+            if (existingUsername) {
+                return res.status(400).json({ message: 'Username already exists' });
+            }
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user.id,
+            { name, username, bio, profilePhoto },
             { new: true }
         );
-        res.json( await updatedUser.getPublicProfile());
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json(await updatedUser.getPublicProfile());
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error });
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
 // Kullanıcıyı Silme (Token Gerekli)
 router.delete('/delete', verifyToken, async (req, res) => {
     try {
-        await User.findByIdAndDelete(req.user.id);
+        const userId = req.user.id;
+        const userPosts = await Post.find({ userId }).select('_id');
+        const userPostIds = userPosts.map(p => p._id);
+
+        await Promise.all([
+            User.findByIdAndDelete(userId),
+            Post.deleteMany({ userId }),
+            Comment.deleteMany({ $or: [{ userId }, { postId: { $in: userPostIds } }] }),
+            Like.deleteMany({ $or: [{ userId }, { postId: { $in: userPostIds } }] }),
+            SavedPost.deleteMany({ $or: [{ userId }, { postId: { $in: userPostIds } }] }),
+            Follow.deleteMany({ $or: [{ followerId: userId }, { followingId: userId }] }),
+            Notification.deleteMany({ $or: [{ recipientId: userId }, { senderId: userId }, { postId: { $in: userPostIds } }] })
+        ]);
         res.json({ message: 'Your account deleted successfully' });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error });
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
 module.exports = router;
+

@@ -18,9 +18,9 @@ app.use("/api/savedPosts", require("./routes/savedPost"));
 app.use('/api/notifications', require('./routes/notification'));
 
 // MongoDB Atlas bağlantısı
-mongoose.connect(process.env.MONGO_URI, {})
-.then(() => console.log("MongoDB Connected"))
-.catch(err => console.log(err));
+mongoose.connect(process.env.MONGO_URI, { dbName: process.env.MONGO_DB_NAME || "minstagram" })
+  .then(() => console.log("MongoDB Connected"))
+  .catch(err => console.log(err));
 
 app.get("/", (req, res) => {
   res.json({
@@ -30,5 +30,15 @@ app.get("/", (req, res) => {
   });
 });
 
+// Merkezi hata yakalama middleware'i
+app.use((err, req, res, next) => {
+  console.error(err);
+  if (err.name === "MulterError" || err.message === "Only image files are allowed") {
+    return res.status(400).json({ error: err.message });
+  }
+  res.status(500).json({ message: "Internal server error" });
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Server ${PORT} portunda çalişiyor`));
+
